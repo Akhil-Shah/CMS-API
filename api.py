@@ -43,6 +43,7 @@ parser.add_argument('category', required=True)
 # Temporary Data Structures (Should be replaced by a Database later)
 authors = [{'username':'Initial','password':'1234'}]
 content = {}
+admin = [{'username':'admin','password':'admin'}]
 
 # Global Variables
 current_user = ''
@@ -67,7 +68,37 @@ def check_token(func):
 
     return wrapper
 
+
+def check_admin(func):
+    def wrapper(*args, **kwargs):
+
+        try:
+            token = request.headers['JWT-Token']
+        except:
+            return {"Error":"Token Missing"}
+
+        try:
+            info = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+            for each_admin in admin:
+                if each_admin['username'] == info['username'] and each_admin['password'] == info['password']:
+                    return func(*args, **kwargs)
+        except:
+            return {"Error":"Invalid Token"}
+
+        return {"Error":"Not a Admin"}
+
+    return wrapper
+
 # Routes
+
+@api.route('/admin')
+class AdminControl(Resource):
+
+    @api.doc(security='token')
+    @check_admin
+    def get(self):
+        return content
+
 @api.route('/register')
 class RegisterUser(Resource):
 
@@ -91,10 +122,17 @@ class LoginUser(Resource):
         username = api.payload['username']
         password = api.payload['password']
 
+        for each_admin in admin:
+            if each_admin['username'] == username and each_admin['password'] == password:
+                token = jwt.encode({'username':username, 'password':password}, app.config['SECRET_KEY'], algorithm='HS256')
+                return {"token":token.decode('UTF-8')}
+
         for each_user in authors:
             if each_user['username'] == username and each_user['password'] == password:
                 token = jwt.encode({'username':username, 'password':password}, app.config['SECRET_KEY'], algorithm='HS256')
                 return {"token":token.decode('UTF-8')}
+        
+        return {"Error":"Account Does not Exist"}
 
 @api.route('/content')
 class CreateContent(Resource):
@@ -139,7 +177,7 @@ class ContentOperations(Resource):
     @check_token
     def put(self,content_id):
         args = parser.parse_args()
-        
+
         content[current_user][content_id-1] = {
             'title':args['title'],
             'body':args['body'],
