@@ -1,6 +1,6 @@
 # Importing Library
 from flask import Flask, request
-from flask_restplus import Api, Resource, fields
+from flask_restplus import Api, Resource, fields, reqparse
 
 import jwt
 
@@ -30,6 +30,11 @@ content_model = api.model('content',{
     #'summary':fields.String(required=True),
     #'document':fields.String(required=True),
     #'category':fields.String(required=True),
+})
+
+pagination_model = api.model('pagination',{
+    'start':fields.Integer(required=True),
+    'end':fields.Integer(required=True)
 })
 
 # Temporary Data Structures (Should be replaced by a Database later)
@@ -91,6 +96,10 @@ class LoginUser(Resource):
 @api.route('/content')
 class CreateContent(Resource):
 
+    '''
+ 
+    '''
+
     @api.expect(content_model)
     @api.doc(security='token')
     @check_token
@@ -136,11 +145,20 @@ class ContentOperations(Resource):
         del content[current_user][content_id-1]
 
         return {"Success":"Content Deleted"}
-        
-
-    
 
 
+@api.route('/pagination')
+class Pagination(Resource):
+
+    @api.expect(pagination_model)
+    @api.doc(security='token')
+    @check_token
+    def post(self):
+
+        start = api.payload['start']
+        end = api.payload['end']
+
+        return content[current_user][start-1:end]
 
 # Run API
 if __name__ == '__main__':
