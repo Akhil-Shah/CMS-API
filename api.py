@@ -88,13 +88,8 @@ class LoginUser(Resource):
                 token = jwt.encode({'username':username, 'password':password}, app.config['SECRET_KEY'], algorithm='HS256')
                 return {"token":token.decode('UTF-8')}
 
-@api.route('/author')
-class AuthorContent(Resource):
-
-    @api.doc(security='token')
-    @check_token
-    def get(self):
-        return content[current_user]
+@api.route('/content')
+class CreateContent(Resource):
 
     @api.expect(content_model)
     @api.doc(security='token')
@@ -110,11 +105,41 @@ class AuthorContent(Resource):
             ]
         else:
             content[current_user].append({
-                    'title':api.payload['title'],
-                    'body':api.payload['body']
+                'title':api.payload['title'],
+                'body':api.payload['body']
             })
             
         return {"Success":"Content Added"}
+
+@api.route('/content/<int:content_id>')
+class ContentOperations(Resource):
+
+    @api.doc(security='token')
+    @check_token
+    def get(self,content_id):
+        return content[current_user][content_id-1]
+
+    @api.expect(content_model)
+    @api.doc(security='token')
+    @check_token
+    def put(self,content_id):
+        content[current_user][content_id-1] = {
+            'title':api.payload['title'],
+            'body':api.payload['body']
+        }
+
+        return {"Success":"Content Updated"}
+
+    @api.doc(security='token')
+    @check_token
+    def delete(self,content_id):
+        del content[current_user][content_id-1]
+
+        return {"Success":"Content Deleted"}
+        
+
+    
+
 
 
 # Run API
