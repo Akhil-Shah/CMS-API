@@ -8,7 +8,7 @@ import base64
 
 # Initialization
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'keep_this_secret'
+app.config['SECRET_KEY'] = 'keep_this_secret' # Used in jwt
 
 authorizations = {
     'token' : {
@@ -31,6 +31,7 @@ pagination_model = api.model('pagination',{
     'end':fields.Integer(required=True)
 })
 
+# Defining a Parser instead of Content Model (For handling documents)
 parser = api.parser()
 parser.add_argument('title', required=True)
 parser.add_argument('body', required=True)
@@ -41,14 +42,14 @@ parser.add_argument('category', required=True)
 
 
 # Temporary Data Structures (Should be replaced by a Database later)
-authors = [{'username':'Initial','password':'1234'}]
+authors = []
 content = {}
 admin = [{'username':'admin','password':'admin'}]
 
 # Global Variables
 current_user = ''
 
-# Decorator Functions
+# Decorator Functions (JWT Authentication)
 def check_token(func):
     def wrapper(*args, **kwargs):
 
@@ -91,6 +92,7 @@ def check_admin(func):
 
 # Routes
 
+# For Admin to view everybody's Content
 @api.route('/admin')
 class AdminControl(Resource):
 
@@ -99,6 +101,7 @@ class AdminControl(Resource):
     def get(self):
         return content
 
+# For Registering User
 @api.route('/register')
 class RegisterUser(Resource):
 
@@ -112,8 +115,9 @@ class RegisterUser(Resource):
             'password':password,
         })
 
-        return {"status":"New Author Added","authors":authors}
+        return {"Status":"New Author Added"}
 
+# For Login, returns a jwt token which is to be used
 @api.route('/login')
 class LoginUser(Resource):
 
@@ -122,17 +126,21 @@ class LoginUser(Resource):
         username = api.payload['username']
         password = api.payload['password']
 
-        for each_admin in admin:
-            if each_admin['username'] == username and each_admin['password'] == password:
-                token = jwt.encode({'username':username, 'password':password}, app.config['SECRET_KEY'], algorithm='HS256')
-                return {"token":token.decode('UTF-8')}
+        try:
+            for each_admin in admin:
+                if each_admin['username'] == username and each_admin['password'] == password:
+                    token = jwt.encode({'username':username, 'password':password}, app.config['SECRET_KEY'], algorithm='HS256')
+                    return {"token":token.decode('UTF-8')}
 
-        for each_user in authors:
-            if each_user['username'] == username and each_user['password'] == password:
-                token = jwt.encode({'username':username, 'password':password}, app.config['SECRET_KEY'], algorithm='HS256')
-                return {"token":token.decode('UTF-8')}
-        
-        return {"Error":"Account Does not Exist"}
+            for each_user in authors:
+                if each_user['username'] == username and each_user['password'] == password:
+                    token = jwt.encode({'username':username, 'password':password}, app.config['SECRET_KEY'], algorithm='HS256')
+                    return {"token":token.decode('UTF-8')}
+
+            return {"Error":"Account Does not Exist"}, 401
+
+        except:
+            return {"Error":"Account Does not Exist"}, 401
 
 @api.route('/content')
 class CreateContent(Resource):
@@ -170,28 +178,41 @@ class ContentOperations(Resource):
     @api.doc(security='token')
     @check_token
     def get(self,content_id):
-        return content[current_user][content_id-1]
+
+        try:
+            return content[current_user][content_id-1]
+        except:
+            return {"Error":"Content Not Found"}, 400
+
 
     @api.expect(parser)
     @api.doc(security='token')
     @check_token
     def put(self,content_id):
+
         args = parser.parse_args()
 
-        content[current_user][content_id-1] = {
-            'title':args['title'],
-            'body':args['body'],
-            'summary':args['summary'],
-            'document':base64.b64encode(args['document'].read()).decode('utf-8'),
-            'category':args['category']
-        }
+        try:
+            content[current_user][content_id-1] = {
+                'title':args['title'],
+                'body':args['body'],
+                'summary':args['summary'],
+                'document':base64.b64encode(args['document'].read()).decode('utf-8'),
+                'category':args['category']
+            }
+        except:
+            return {"Error":"Content Not Found"}, 400
 
         return {"Success":"Content Updated"}
 
     @api.doc(security='token')
     @check_token
     def delete(self,content_id):
-        del content[current_user][content_id-1]
+
+        try:
+            del content[current_user][content_id-1]
+        except:
+            return {"Error":"Content Not Found"}, 400
 
         return {"Success":"Content Deleted"}
 
@@ -207,7 +228,10 @@ class Pagination(Resource):
         start = api.payload['start']
         end = api.payload['end']
 
-        return content[current_user][start-1:end]
+        try:
+            return content[current_user][start-1:end]
+        except:
+            return {"Error":"Content Not Found"}, 400
 
 # Run API
 if __name__ == '__main__':
