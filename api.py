@@ -1,8 +1,10 @@
 # Importing Library
 from flask import Flask, request
 from flask_restplus import Api, Resource, fields, reqparse
+from werkzeug.datastructures import FileStorage
 
 import jwt
+import base64
 
 # Initialization
 app = Flask(__name__)
@@ -24,18 +26,19 @@ auth_model = api.model('auth',{
     'password':fields.String(required=True),
 })
 
-content_model = api.model('content',{
-    'title':fields.String(required=True,),
-    'body':fields.String(required=True)
-    #'summary':fields.String(required=True),
-    #'document':fields.String(required=True),
-    #'category':fields.String(required=True),
-})
-
 pagination_model = api.model('pagination',{
     'start':fields.Integer(required=True),
     'end':fields.Integer(required=True)
 })
+
+parser = api.parser()
+parser.add_argument('title', required=True)
+parser.add_argument('body', required=True)
+parser.add_argument('summary', required=True)
+parser.add_argument('document', location='files',
+                    type=FileStorage, required=True)
+parser.add_argument('category', required=True)
+
 
 # Temporary Data Structures (Should be replaced by a Database later)
 authors = [{'username':'Initial','password':'1234'}]
@@ -96,28 +99,31 @@ class LoginUser(Resource):
 @api.route('/content')
 class CreateContent(Resource):
 
-    '''
- 
-    '''
-
-    @api.expect(content_model)
+    @api.expect(parser)
     @api.doc(security='token')
     @check_token
     def post(self):
-
+        args = parser.parse_args()
+    
         if current_user not in content.keys():
             content[current_user] = [
                 {
-                    'title':api.payload['title'],
-                    'body':api.payload['body']
+                    'title':args['title'],
+                    'body':args['body'],
+                    'summary':args['summary'],
+                    'document':base64.b64encode(args['document'].read()).decode('utf-8'),
+                    'category':args['category']
                 }
             ]
         else:
             content[current_user].append({
-                'title':api.payload['title'],
-                'body':api.payload['body']
+                'title':args['title'],
+                'body':args['body'],
+                'summary':args['summary'],
+                'document':base64.b64encode(args['document'].read()).decode('utf-8'),
+                'category':args['category']
             })
-            
+    
         return {"Success":"Content Added"}
 
 @api.route('/content/<int:content_id>')
@@ -128,13 +134,18 @@ class ContentOperations(Resource):
     def get(self,content_id):
         return content[current_user][content_id-1]
 
-    @api.expect(content_model)
+    @api.expect(parser)
     @api.doc(security='token')
     @check_token
     def put(self,content_id):
+        args = parser.parse_args()
+        
         content[current_user][content_id-1] = {
-            'title':api.payload['title'],
-            'body':api.payload['body']
+            'title':args['title'],
+            'body':args['body'],
+            'summary':args['summary'],
+            'document':base64.b64encode(args['document'].read()).decode('utf-8'),
+            'category':args['category']
         }
 
         return {"Success":"Content Updated"}
