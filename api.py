@@ -19,13 +19,25 @@ authorizations = {
 api = Api(app,authorizations=authorizations)
 
 # Defining the models
-auth = api.model('auth',{
+auth_model = api.model('auth',{
     'username':fields.String(required=True),
     'password':fields.String(required=True),
 })
 
+content_model = api.model('content',{
+    'title':fields.String(required=True,),
+    'body':fields.String(required=True)
+    #'summary':fields.String(required=True),
+    #'document':fields.String(required=True),
+    #'category':fields.String(required=True),
+})
+
 # Temporary Data Structures (Should be replaced by a Database later)
 authors = [{'username':'Initial','password':'1234'}]
+content = {}
+
+# Global Variables
+current_user = ''
 
 # Decorator Functions
 def check_token(func):
@@ -37,7 +49,9 @@ def check_token(func):
             return {"Error":"Token Missing"}
 
         try:
-            jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+            info = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+            global current_user
+            current_user = info['username']
         except:
             return {"Error":"Invalid Token"}
 
@@ -49,7 +63,7 @@ def check_token(func):
 @api.route('/register')
 class RegisterUser(Resource):
 
-    @api.expect(auth)
+    @api.expect(auth_model)
     def post(self):
         username = api.payload['username']
         password = api.payload['password']
@@ -64,7 +78,7 @@ class RegisterUser(Resource):
 @api.route('/login')
 class LoginUser(Resource):
 
-    @api.expect(auth)
+    @api.expect(auth_model)
     def post(self):
         username = api.payload['username']
         password = api.payload['password']
@@ -80,7 +94,28 @@ class AuthorContent(Resource):
     @api.doc(security='token')
     @check_token
     def get(self):
-        return {"Made":"It"}
+        return content[current_user]
+
+    @api.expect(content_model)
+    @api.doc(security='token')
+    @check_token
+    def post(self):
+
+        if current_user not in content.keys():
+            content[current_user] = [
+                {
+                    'title':api.payload['title'],
+                    'body':api.payload['body']
+                }
+            ]
+        else:
+            content[current_user].append({
+                    'title':api.payload['title'],
+                    'body':api.payload['body']
+            })
+            
+        return {"Success":"Content Added"}
+
 
 # Run API
 if __name__ == '__main__':
